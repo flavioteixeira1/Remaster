@@ -6,7 +6,7 @@ import java.util.prefs.Preferences;
 import java.awt.event.KeyEvent;
 
 public class JoystickConfig {
-    private static final String PREFS_NODE = "com/vnes/joystick"; //isso deve mudar
+    private static final String PREFS_NODE = "com/remaster/joystick"; //isso deve mudar
     private Preferences prefs;
     
     public JoystickConfig() {

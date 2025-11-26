@@ -1,6 +1,0 @@
-Classe PSG = Audio
-
-Classes Joystick , DrawSurface, Ports, MainThread, Remaster relacionadas aos controles (Joystick)
-
-Classes q lidam directamente com controles(entrada) Joystick, Ports
- 

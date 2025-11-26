@@ -2,7 +2,7 @@ package com.flavioteixeira1.remaster.core;
 
 
 /*
- * @author André Luiz Veltroni Sanches - alvs
+ * @author AndrÃ© Luiz Veltroni Sanches - alvs
  *
  * Notes: undocumented opcodes are marked with a * character.
  *        DAA table borrowed from Chris White's JavaGear
