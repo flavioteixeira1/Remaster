@@ -3,6 +3,11 @@ package com.flavioteixeira1.remaster.core;
 import java.awt.*;
 import java.awt.event.*;
 
+import javax.swing.JOptionPane;
+
+import com.flavioteixeira1.remaster.core.joyrobot.JoystickManager;
+
+
 public final class Remaster extends Frame {
   Remaster remaster;
   MainThread mainloop;
@@ -17,6 +22,10 @@ public final class Remaster extends Frame {
   Debugger debugger;
   DrawSurface drawsurface;
 
+  
+  private JoystickManager joystickManagerPlayer1;
+  private JoystickManager joystickManagerPlayer2;
+
   VRAMViewer vramviewer;
   CRAMViewer cramviewer;
   
@@ -26,9 +35,10 @@ public final class Remaster extends Frame {
   Menu display;
   Menu sound;
   Menu help;
+  Menu joystick; 
   AboutFrame aboutFrame;
   
-  static String APPNAME = "Remaster v0.01";
+  static String APPNAME = "Remaster v0.02";
   
   public Remaster() {
     super(GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration());
@@ -40,6 +50,8 @@ public final class Remaster extends Frame {
     setTitle(Remaster.APPNAME);
     setLocation(100, 50);
     setSize(264,238);
+
+     initializeJoysticks();
 
     // create drawing surface panel and add it to the main frame
     drawsurface = new DrawSurface(this);
@@ -75,9 +87,30 @@ public final class Remaster extends Frame {
     System.setOut(trace);
     // --------- end of temporary code block -----------------
 */    
-    // Setup action listeners
-    addWindowListener(new WindowAdapter() { public void windowClosing(WindowEvent e) { exit(); } } );
-}
+   // Setup action listeners
+    addWindowListener(new WindowAdapter() { 
+  public void windowClosing(WindowEvent e) { 
+        exit(); 
+      } 
+    });
+  }
+
+  private void initializeJoysticks() {
+    try {
+      // Inicializar gerenciadores de joystick para ambos os players
+      joystickManagerPlayer1 = JoystickManager.getInstanceForPlayer(0);
+      joystickManagerPlayer2 = JoystickManager.getInstanceForPlayer(1);
+      
+      System.out.println("Joystick Manager inicializado:");
+      System.out.println("Player 1: " + (joystickManagerPlayer1.isJoystickEnabled() ? "Conectado" : "Não conectado"));
+      System.out.println("Player 2: " + (joystickManagerPlayer2.isJoystickEnabled() ? "Conectado" : "Não conectado"));
+      
+    } catch (Exception e) {
+      System.err.println("Erro ao inicializar joysticks: " + e.getMessage());
+    }
+  }
+
+
   
   public void startEmulation() {
     setTitle(Remaster.APPNAME + " - " + cart.getFileName());
@@ -85,6 +118,7 @@ public final class Remaster extends Frame {
     // Enable menu items
     for(int i=0; i < file.getItemCount(); i++)     file.getItem(i).enable();
     for(int i=0; i < emulator.getItemCount(); i++) emulator.getItem(i).enable();
+     for(int i=0; i < joystick.getItemCount(); i++) joystick.getItem(i).enable();
     
     if(mainloop != null) { mainloop.stopEmulation(); mainloop = null; }
 
@@ -95,6 +129,14 @@ public final class Remaster extends Frame {
   }
   
   public void exit() {
+    // Limpar recursos dos joysticks
+    if (joystickManagerPlayer1 != null) {
+      joystickManagerPlayer1.cleanup();
+    }
+    if (joystickManagerPlayer2 != null) {
+      joystickManagerPlayer2.cleanup();
+    }
+
   	if(mainloop != null) {
   		mainloop.stopEmulation();
   		//memory.dumpMemory();
@@ -221,11 +263,70 @@ public final class Remaster extends Frame {
     soundchan0.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) { psg.chan0 = !psg.chan0; } } );    
     soundchan1.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) { psg.chan1 = !psg.chan1; } } );    
     soundchan2.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) { psg.chan2 = !psg.chan2; } } );
+    //Configuração de Joystick
+    joystick = new Menu("Joystick");
+    MenuItem configPlayer1 = new MenuItem("Configurar Player 1");
+    MenuItem configPlayer2 = new MenuItem("Configurar Player 2");
+    MenuItem joystickStatus = new MenuItem("Status dos Joysticks");
+    
+    joystick.add(configPlayer1);
+    joystick.add(configPlayer2);
+    joystick.addSeparator();
+    joystick.add(joystickStatus);
+    menubar.add(joystick);
+    
     // Help menu
     about.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { aboutFrame.setVisible(true); } } );
     
+    // Configurar listeners para o novo menu Joystick
+    configPlayer1.addActionListener(new ActionListener() {
+      public void actionPerformed(ActionEvent e) {
+        showJoystickConfigDialog(0);
+      }
+    });
+    
+    configPlayer2.addActionListener(new ActionListener() {
+      public void actionPerformed(ActionEvent e) {
+        showJoystickConfigDialog(1);
+      }
+    });
+    
+    joystickStatus.addActionListener(new ActionListener() {
+      public void actionPerformed(ActionEvent e) {
+        showJoystickStatus();
+      }
+    });
+    
+    // Desabilitar menu joystick inicialmente
+    for(int i=0; i < joystick.getItemCount(); i++) joystick.getItem(i).disable();
+    
     return menubar;
   }
+
+   private void showJoystickConfigDialog(int playerId) {
+    try {
+      JoystickManager joyManager = (playerId == 0) ? joystickManagerPlayer1 : joystickManagerPlayer2;
+      
+      // Usar o JoystickConfigDialog
+      com.flavioteixeira1.remaster.core.joyrobot.JoystickConfigDialog configDialog = 
+          new com.flavioteixeira1.remaster.core.joyrobot.JoystickConfigDialog(this, joyManager, playerId);
+      configDialog.setVisible(true);
+      
+    } catch (Exception e) {
+      JOptionPane.showMessageDialog(this,
+          "Erro ao abrir configuração do joystick: " + e.getMessage(),
+          "Erro",
+          JOptionPane.ERROR_MESSAGE);
+    }
+  }
+
+  private void showJoystickStatus() {
+    String status = JoystickManager.getGlobalStatus();
+    JOptionPane.showMessageDialog(this, status, "Status dos Joysticks", JOptionPane.INFORMATION_MESSAGE);
+  }
+
+  
+
   
   public static void main(String args[])
   {
