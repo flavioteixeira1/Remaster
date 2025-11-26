@@ -232,21 +232,29 @@ public class JoystickManager {
     }
 
     private void adjustButtonMapping(int buttonOffset) {
-            // Criar novo mapeamento ajustado
-            Map<Integer, Integer> adjustedMapping = new HashMap<>();
-            // Mapear botões virtuais 0-5 para os índices físicos corretos
-            for (int virtualButton = 0; virtualButton <= 5; virtualButton++) {
-                int physicalIndex = buttonOffset + virtualButton;
-                if (physicalIndex < components.length) {
-                    adjustedMapping.put(physicalIndex, buttonToKeyMapping.get(virtualButton));
-                }
+        // Criar novo mapeamento ajustado
+        Map<Integer, Integer> adjustedMapping = new HashMap<>();
+        
+        // Mapear botões virtuais apenas para os índices que existem no mapeamento original
+        for (Map.Entry<Integer, Integer> entry : buttonToKeyMapping.entrySet()) {
+            int virtualButton = entry.getKey();
+            int physicalIndex = buttonOffset + virtualButton;
+            
+            // Verificar se o índice físico está dentro dos limites dos componentes
+            if (physicalIndex < components.length) {
+                adjustedMapping.put(physicalIndex, entry.getValue());
+                System.out.println("  Botão virtual " + virtualButton + " -> físico " + physicalIndex + " -> " + getKeyName(entry.getValue()));
+            } else {
+                System.out.println("  AVISO: Botão físico " + physicalIndex + " está fora dos limites (máx: " + (components.length - 1) + ")");
             }
-            // Substituir o mapeamento original
-            buttonToKeyMapping = adjustedMapping;
-            System.out.println("Mapeamento ajustado com offset " + buttonOffset + ":");
-            for (Map.Entry<Integer, Integer> entry : buttonToKeyMapping.entrySet()) {
-                System.out.println("  Botão físico " + entry.getKey() + " -> " + getKeyName(entry.getValue()));
-            }
+    }
+    
+    // Substituir o mapeamento original
+    buttonToKeyMapping = adjustedMapping;
+    System.out.println("Mapeamento ajustado com offset " + buttonOffset + ":");
+    for (Map.Entry<Integer, Integer> entry : buttonToKeyMapping.entrySet()) {
+        System.out.println("  Botão físico " + entry.getKey() + " -> " + getKeyName(entry.getValue()));
+    }
     }
     
     private void setupDefaultMapping() {
@@ -261,6 +269,8 @@ public class JoystickManager {
             buttonToKeyMapping.put(1, KeyEvent.VK_X);      // B button  
             buttonToKeyMapping.put(2, KeyEvent.VK_ENTER);  // Start
             buttonToKeyMapping.put(3, KeyEvent.VK_CONTROL); // Select
+            //buttonToKeyMapping.put(4, -1); // Botão extra 1 (não mapeado)
+            //buttonToKeyMapping.put(5, -1); // Botão extra 2 (não mapeado)
             // Player 1 - Eixos
             axisToKeyMapping.put(Component.Identifier.Axis.X,new Integer[]{KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT});
             axisToKeyMapping.put(Component.Identifier.Axis.Y,new Integer[]{KeyEvent.VK_UP, KeyEvent.VK_DOWN});
@@ -270,6 +280,8 @@ public class JoystickManager {
             buttonToKeyMapping.put(1, KeyEvent.VK_NUMPAD9); // B button  
             buttonToKeyMapping.put(2, KeyEvent.VK_NUMPAD1); // Start
             buttonToKeyMapping.put(3, KeyEvent.VK_NUMPAD3); // Select
+            //buttonToKeyMapping.put(4, -1); // Botão extra 1 (não mapeado)
+            //buttonToKeyMapping.put(5, -1); // Botão extra 2 (não mapeado)
              // Player 2 - Eixos
             axisToKeyMapping.put(Component.Identifier.Axis.X,new Integer[]{KeyEvent.VK_NUMPAD4, KeyEvent.VK_NUMPAD6});
             axisToKeyMapping.put(Component.Identifier.Axis.Y,new Integer[]{KeyEvent.VK_NUMPAD8, KeyEvent.VK_NUMPAD2});
