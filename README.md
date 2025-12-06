@@ -1,8 +1,7 @@
 Remaster
 ========
 
-SEGA Master System/Mark III emulator writtten 100% in Java. This project was created as a partial requirement for the completion of my B.Sc. degree in Computer Science.
-
+SEGA Master System/Mark III emulator writtten 100% in Java
 Features
 ========
 
