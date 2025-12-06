@@ -1,9 +1,12 @@
 package com.flavioteixeira1.remaster.core;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
+
 
 /*
  * @author André Luiz Veltroni Sanches - alvs
- *
+ * andre.alvs@gmail.com
  * Notes: undocumented opcodes are marked with a * character.
  *        DAA table borrowed from Chris White's JavaGear
  *        which is available at http://www.javagear.co.uk
@@ -30,7 +33,8 @@ public final class EZ80 {
   public static final int FLAG_CARRY  = 0x01;
 
   public boolean EIDI_Last;                         // "True" if the last executed instruction was DI or EI.
-  public boolean halt;                              // for HALT instruction
+  public boolean halt;
+  public boolean CPUhalted;                              // for HALT instruction
   public int counter;                               // Cycle Counter
 
   private MemoryManager memory;
@@ -38,9 +42,10 @@ public final class EZ80 {
   private Ports ports;
   private Debugger debugger;
   private int opcode = 0;
-  
+   
   private Mnemonic opcodes;
   public Messages msg;
+  private final AtomicBoolean nmiPending = new AtomicBoolean(false);
 
   public EZ80(MemoryManager memory, Ports ports, VDP vdp, Debugger debugger) {
     this.memory = memory;
@@ -69,8 +74,10 @@ public final class EZ80 {
     counter = 0;
     EIDI_Last = false;
     halt = false;
+    CPUhalted =  false;
     iff1 = false;
     iff2 = false;
+    im = 0;
   }
 
   public final void push(int value) {
@@ -93,6 +100,50 @@ public final class EZ80 {
   	irq = true;
   }
 
+/* 
+  public void interrupt() {
+        if (iff1) {
+            iff1 = iff2 = false;
+            
+            // Se estava em HALT, incrementa PC e sai do estado
+            if (halt) {
+                pc = (pc + 1) & 0xffff;
+                halt = false;
+            }
+            
+            // Empilha PC
+            sp = (sp - 1) & 0xffff;
+            memory.writebyte(sp, (pc >> 8));
+            sp = (sp - 1) & 0xffff;
+            memory.writebyte(sp, (pc & 0xff));
+            
+            r = (r + 1) & 0x7f;
+            
+            switch (im) {
+                case 0:
+                    pc = 0x0038;
+                    counter += 12;
+                    break;
+                case 1:
+                    pc = 0x0038;
+                    counter += 13;
+                    break;
+                case 2:
+                    int inttemp = (0x100 * r) + 0xff;
+                    int pcl = memory.readbyte(inttemp++) & 0xff;
+                    int pch = memory.readbyte(inttemp & 0xffff) & 0xff;
+                    pc = (pch << 8) | pcl;
+                    counter += 19;
+                    break;
+                default:
+                    System.err.println("Unknown interrupt mode: " + im);
+                    break;
+            }
+        }
+    }
+ */
+  
+
   public final void interrupt() {
     if((EIDI_Last == true) || (iff1 == false)) return;
 
@@ -110,15 +161,52 @@ public final class EZ80 {
 
     switch(im) {
       case 0:
+        pc = 0x0038;
+        counter += 12;
+        break;
       case 1:
       	//System.out.println("INTERRUPT EXECUTED");
       	push(pc);
         pc = 0x38;
         counter -= 13;
         break;
-      default:	System.out.println("Interrupt mode 2 not yet implemented.");
+      case 2:
+        int inttemp = (0x100 * r) + 0xff;
+        int pcl = memory.readbyte(inttemp++) & 0xff;
+        int pch = memory.readbyte(inttemp & 0xffff) & 0xff;
+        pc = (pch << 8) | pcl;
+        counter += 19;
+        System.out.println("interrupted case2");
+        break;
+      default:	System.out.println("Unknown interrupt mode: \" + im");
     }
   }
+ 
+
+  
+   // Marca pedido de NMI. 
+   public void requestNMI() {
+        nmiPending.set(true);
+    }
+
+
+   
+    
+     // Retorna true se uma NMI foi entregue.
+     
+    public boolean serviceInterrupts() {
+        if (nmiPending.getAndSet(false)) {
+            System.out.println("DEBUG: Entregando NMI");
+            synchronized (this) {
+                // chama o método nmi() já existente que empilha PC e seta PC = 0x0066...
+                nmi();
+            }
+            return true;
+        }
+        return false;
+    }
+
+
 
   public final void execute(int iperiod) {
     counter += iperiod;
@@ -167,6 +255,10 @@ public final class EZ80 {
       System.out.println(op);
       // --------------- END OF DEBUGGING PART --------------
 */
+      
+     
+      
+
       exec_opcode(memory.readbyte(pc));
     }
     //updateDebugger();
@@ -9456,6 +9548,8 @@ public final class EZ80 {
     flagreg = f;
   }
 
+
+
   public void updateDebugger()
   {
     debugger.regA.setText(Integer.toHexString(a).toUpperCase());
@@ -9502,6 +9596,34 @@ public final class EZ80 {
     debugger.VDPScanline.setText(Integer.toString(vdp.scanline).toUpperCase());
     
   }
+  
+  
+  public void nmi() {
+  
+       System.out.println("DEBUG: Executando NMI (antes: PC=" + Integer.toHexString(pc) + ")");
+        
+        // Desabilita IFF1 (não afeta IFF2 para NMI)
+        iff1 = false;
+        
+        // Empilha PC na stack
+        sp = (sp - 1) & 0xffff;
+        memory.writebyte(sp, (pc >> 8)); // High byte
+        sp = (sp - 1) & 0xffff;
+        memory.writebyte(sp, (pc & 0xff)); // Low byte
+        
+        // Atualiza ciclos de clock e define novo PC
+        counter += 11;
+        pc = 0x0066; // Endereço padrão do handler NMI no Z80
+
+         // Se estava em HALT, sai do estado
+        if (halt) {
+            halt = false;
+        }
+        System.out.println("DEBUG: NMI entregue (depois: PC=" + Integer.toHexString(pc) + ")");
+      
+        }
+
+     
 
   // DAA table generator, borrowed from JavaGear (thanks Chris White)
   private void generateDAATable() {

@@ -1,5 +1,6 @@
 package com.flavioteixeira1.remaster.core;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class MainThread extends Thread {
   Cartridge cart;
@@ -15,6 +16,9 @@ public final class MainThread extends Thread {
   Debugger debugger;
   
   boolean running;
+
+  // NMI request flag — set from other threads, handled inside the emulator thread
+  private final AtomicBoolean nmiRequested = new AtomicBoolean(false);
 
   public MainThread(Screen screen, Cartridge cart, MemoryManager memory, VDP vdp, PSG psg, Ports ports, Joystick joy, EZ80 z80, Debugger debugger, VRAMViewer vramviewer, CRAMViewer cramviewer) {
   	this.cart = cart;    
@@ -54,6 +58,19 @@ public final class MainThread extends Thread {
     running = false;
   }
 
+  /**
+   * Request that an NMI be delivered to the CPU. Safe to call from any thread.
+   * The actual z80.nmi() will be executed inside the emulation thread at a
+   * safe point to avoid race conditions.
+   */
+  public void requestNMI() {
+    if (z80 != null) {
+      z80.requestNMI();
+    }
+    // interrompe o thread do emulador para acordá-lo caso esteja dormindo
+    this.interrupt();
+  }
+
   public final void run() {
     System.out.println("EMULATOR: Starting main thread.");
 
@@ -61,6 +78,17 @@ public final class MainThread extends Thread {
     running = true;
 
     while(running) {
+        // Pedidos de NMI ficam pendentes dentro do EZ80; efetue entrega em momento seguro:
+        try {
+            if (z80 != null) {
+                //System.out.println("DEBUG: NMI requisitado pelo mainloop");
+                z80.serviceInterrupts();
+            }
+           } catch (Exception ex) {
+                System.err.println("Erro ao processar NMI: " + ex.getMessage());
+            }
+        
+
         if(vdp.scanline < 192) {
             z80.execute(219);
 

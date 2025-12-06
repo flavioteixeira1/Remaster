@@ -58,7 +58,7 @@ public final class MemoryManager
   		if(((memory[0xFFFC] & 0x8) == 0)) {// Page 2 mapped as ROM
   			System.arraycopy(cart.romData, (value % cart.numPages) << 14, memory, 0x8000, 16384);
   		}
-  		memory[0xFFFF] = (byte)(value);
+  		memory[0xFFFF] = (byte)(value & 0xff);
   	}
 
   	else if((addr >= 0x8000) && (addr < 0xC000) && ((memory[0xFFFC] & 0x8) != 0)) { // Write to Cartridge RAM
