@@ -43,15 +43,16 @@ public class JoystickConfigDialog extends JDialog {
         JPanel mainPanel = new JPanel(new GridLayout(0, 2, 10, 10));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
-        // Botões para mapeamento (apenas os 4 principais para simplificar)
+        // Botões para mapeamento (adicionado Pause como botão extra)
         String[] buttonLabels = {
             "Botão A (Ataque)", "Botão B (Pulo)", 
             "Start (Iniciar)", "Select (Selecionar)",
+            "Pause (NMI)",
             "Direcional Cima", "Direcional Baixo",
             "Direcional Esquerda", "Direcional Direita"
         };
         
-        int[] buttonIndices = {0, 1, 2, 3, -1, -2, -3, -4};
+        int[] buttonIndices = {0, 1, 2, 3, 4, -1, -2, -3, -4};
         
         for (int i = 0; i < buttonLabels.length; i++) {
             JLabel label = new JLabel(buttonLabels[i]);
@@ -80,17 +81,19 @@ public class JoystickConfigDialog extends JDialog {
     }
     
     private void loadCurrentMapping() {
-        // Usar mapeamento padrão
+        // Usar mapeamento padrão (agora incluindo Pause)
         if (playerId == 0) {
             currentMapping.put(0, KeyEvent.VK_Z);      // A
             currentMapping.put(1, KeyEvent.VK_X);      // B  
             currentMapping.put(2, KeyEvent.VK_ENTER);  // Start
             currentMapping.put(3, KeyEvent.VK_CONTROL); // Select
+            currentMapping.put(4, KeyEvent.VK_P);      // Pause (NMI)
         } else {
             currentMapping.put(0, KeyEvent.VK_NUMPAD7); // A
             currentMapping.put(1, KeyEvent.VK_NUMPAD9); // B  
             currentMapping.put(2, KeyEvent.VK_NUMPAD1); // Start
             currentMapping.put(3, KeyEvent.VK_NUMPAD3); // Select
+            currentMapping.put(4, KeyEvent.VK_P);       // Pause (NMI) - default same key
         }
         
         updateButtonLabels();
@@ -149,6 +152,7 @@ public class JoystickConfigDialog extends JDialog {
             case 1: return "Botão B (Pulo)";
             case 2: return "Start";
             case 3: return "Select";
+            case 4: return "Pause (NMI)";
             case -1: return "Cima ↑";
             case -2: return "Baixo ↓";
             case -3: return "Esquerda ←";

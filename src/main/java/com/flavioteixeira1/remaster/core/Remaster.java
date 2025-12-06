@@ -2,10 +2,11 @@ package com.flavioteixeira1.remaster.core;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.util.prefs.Preferences;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.JOptionPane;
-
-import com.flavioteixeira1.remaster.core.joyrobot.JoystickManager;
 
 
 public final class Remaster extends Frame {
@@ -22,10 +23,6 @@ public final class Remaster extends Frame {
   Debugger debugger;
   DrawSurface drawsurface;
 
-  
-  private JoystickManager joystickManagerPlayer1;
-  private JoystickManager joystickManagerPlayer2;
-
   VRAMViewer vramviewer;
   CRAMViewer cramviewer;
   
@@ -36,9 +33,16 @@ public final class Remaster extends Frame {
   Menu sound;
   Menu help;
   Menu joystick; 
-  AboutFrame aboutFrame;
+  HelpDialog helpDialog;
+  JoystickConfigWindow joystickConfigWindow;
   
-  static String APPNAME = "Remaster v0.02";
+  // Recent files
+  private Menu recentMenu;
+  private final int MAX_RECENTS = 8;
+  private final Preferences prefs = Preferences.userNodeForPackage(Remaster.class);
+  private final String PREF_KEY_PREFIX = "recent.";
+
+  static String APPNAME = "Remaster KEys: Z, X, Enter, Ctrl";
   
   public Remaster() {
     super(GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration());
@@ -51,7 +55,6 @@ public final class Remaster extends Frame {
     setLocation(100, 50);
     setSize(264,238);
 
-     initializeJoysticks();
 
     // create drawing surface panel and add it to the main frame
     drawsurface = new DrawSurface(this);
@@ -71,12 +74,19 @@ public final class Remaster extends Frame {
     vramviewer = new VRAMViewer(vdp);
     cramviewer = new CRAMViewer(vdp);
 
-    // create About Frame
-    aboutFrame = new AboutFrame();
+    //create JoystickConfigWindow (using Jkeyboard classes)
+    joystickConfigWindow = new JoystickConfigWindow();
+
+    // create Help Dialog (moved out to its own class)
+    helpDialog = new HelpDialog(this);
+
     // create and set up MenuBar
     menubar = setup_MenuBar();
     setMenuBar(menubar);
     setVisible(true);
+    
+    // Load recents from preferences (after UI created)
+    rebuildRecentMenuItems();
     
 /*    // --------- Debug - instruction trace output stream -------
     java.io.PrintStream trace = null;
@@ -95,22 +105,121 @@ public final class Remaster extends Frame {
     });
   }
 
-  private void initializeJoysticks() {
+  
+  // Adds a path to recents (moves to top). Persists to prefs.
+  private void addToRecents(String fullPath) {
+    if (fullPath == null) return;
+    List<String> list = loadRecents();
+    list.remove(fullPath); // deduplicate
+    list.add(0, fullPath);
+    while (list.size() > MAX_RECENTS) list.remove(list.size() - 1);
+    saveRecents(list);
+    rebuildRecentMenuItems();
+  }
+
+  private List<String> loadRecents() {
+    List<String> list = new ArrayList<>();
+    for (int i = 0; i < MAX_RECENTS; i++) {
+      String v = prefs.get(PREF_KEY_PREFIX + i, null);
+      if (v != null && v.trim().length() > 0) list.add(v);
+    }
+    return list;
+  }
+
+  private void saveRecents(List<String> list) {
+    // clear first
+    for (int i = 0; i < MAX_RECENTS; i++) prefs.remove(PREF_KEY_PREFIX + i);
+    // store
+    for (int i = 0; i < list.size() && i < MAX_RECENTS; i++) {
+      prefs.put(PREF_KEY_PREFIX + i, list.get(i));
+    }
     try {
-      // Inicializar gerenciadores de joystick para ambos os players
-      joystickManagerPlayer1 = JoystickManager.getInstanceForPlayer(0);
-      joystickManagerPlayer2 = JoystickManager.getInstanceForPlayer(1);
-      
-      System.out.println("Joystick Manager inicializado:");
-      System.out.println("Player 1: " + (joystickManagerPlayer1.isJoystickEnabled() ? "Conectado" : "Não conectado"));
-      System.out.println("Player 2: " + (joystickManagerPlayer2.isJoystickEnabled() ? "Conectado" : "Não conectado"));
-      
-    } catch (Exception e) {
-      System.err.println("Erro ao inicializar joysticks: " + e.getMessage());
+      prefs.flush();
+    } catch (Exception e) {}
+  }
+
+  // Rebuild the Recent submenu UI
+  private void rebuildRecentMenuItems() {
+    if (file == null) return; // menu not yet created
+    if (recentMenu == null) {
+      recentMenu = new Menu("Recentes");
+      // Insert recentMenu after "Abrir ROM" (we added openRom first in setup_MenuBar)
+      // We'll remove any existing recentMenu before adding to avoid duplicates.
+    } else {
+      // remove existing recentMenu from file if present
+      for (int i = 0; i < file.getItemCount(); i++) {
+        MenuItem mi = file.getItem(i);
+        if (mi instanceof Menu && ((Menu)mi).getLabel().equals("Recentes")) {
+          file.remove(i);
+          break;
+        }
+      }
+      recentMenu.removeAll();
+    }
+
+    List<String> recents = loadRecents();
+    if (recents.isEmpty()) {
+      MenuItem none = new MenuItem("(nenhum)");
+      none.setEnabled(false);
+      recentMenu.add(none);
+    } else {
+      for (String path : recents) {
+        final String p = path;
+        String name = new java.io.File(path).getName();
+        MenuItem recentItem = new MenuItem(name);
+        recentItem.setEnabled(true);
+        recentItem.addActionListener(new ActionListener() {
+          public void actionPerformed(ActionEvent e) {
+            loadRomFromPath(p);
+          }
+        });
+        recentMenu.add(recentItem);
+      }
+      recentMenu.addSeparator();
+      MenuItem clear = new MenuItem("Limpar lista de recentes");
+      clear.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent e) {
+          saveRecents(new ArrayList<String>());
+          rebuildRecentMenuItems();
+        }
+      });
+      recentMenu.add(clear);
+    }
+
+    // Insert recentMenu after the first item (Abrir ROM)
+    // find position of "Abrir ROM"
+    int insertPos = -1;
+    for (int i = 0; i < file.getItemCount(); i++) {
+      MenuItem mi = file.getItem(i);
+      if (mi.getLabel() != null && mi.getLabel().equals("Abrir ROM")) {
+        insertPos = i + 1;
+        break;
+      }
+    }
+    if (insertPos >= 0 && insertPos <= file.getItemCount()) {
+      file.insert(recentMenu, insertPos);
+    } else {
+      file.add(recentMenu);
     }
   }
 
-
+  // Attempts to load a ROM file from a full path and start emulation (used by Recent menu)
+  private void loadRomFromPath(String fullPath) {
+    if (fullPath == null) return;
+    // unload any currently loaded cart
+    if (z80 != null) z80.msg.setVisible(false);
+    cart.unload();
+    boolean ok = cart.loadFromFile(fullPath);
+    if (!ok) {
+      JOptionPane.showMessageDialog(this, "Não foi possível carregar o arquivo:\n" + fullPath, "Erro", JOptionPane.ERROR_MESSAGE);
+      return;
+    }
+    // ensure recent list updated
+    addToRecents(fullPath);
+    // start emulation
+    startEmulation();
+    drawsurface.requestFocus();
+  }
   
   public void startEmulation() {
     setTitle(Remaster.APPNAME + " - " + cart.getFileName());
@@ -118,8 +227,7 @@ public final class Remaster extends Frame {
     // Enable menu items
     for(int i=0; i < file.getItemCount(); i++)     file.getItem(i).enable();
     for(int i=0; i < emulator.getItemCount(); i++) emulator.getItem(i).enable();
-     for(int i=0; i < joystick.getItemCount(); i++) joystick.getItem(i).enable();
-    
+    for(int i=0; i < joystick.getItemCount(); i++) joystick.getItem(i).enable();    
     if(mainloop != null) { mainloop.stopEmulation(); mainloop = null; }
 
     mainloop = new MainThread(screen, cart, memory, vdp, psg, ports, joy, z80, debugger, vramviewer, cramviewer);
@@ -129,13 +237,7 @@ public final class Remaster extends Frame {
   }
   
   public void exit() {
-    // Limpar recursos dos joysticks
-    if (joystickManagerPlayer1 != null) {
-      joystickManagerPlayer1.cleanup();
-    }
-    if (joystickManagerPlayer2 != null) {
-      joystickManagerPlayer2.cleanup();
-    }
+    JoystickManager.globalCleanup();
 
   	if(mainloop != null) {
   		mainloop.stopEmulation();
@@ -166,6 +268,7 @@ public final class Remaster extends Frame {
     MenuItem exit =     new MenuItem("Sair");
     exit.setShortcut(new MenuShortcut(KeyEvent.VK_X));
     file.add(openRom);
+    // recentMenu will be injected by rebuildRecentMenuItems()
     file.add(closeRom);
     file.addSeparator();
     file.add(exit);
@@ -181,6 +284,13 @@ public final class Remaster extends Frame {
     CheckboxMenuItem debug =       new CheckboxMenuItem("Habilitar Debugger");
     debug.disable();
     emulator.add(pauseresume);
+    
+    // New menu item: Pause via NMI (mapped to key 'P')
+    MenuItem pauseNMI = new MenuItem("Pause (NMI) - tecla P");
+    pauseNMI.setShortcut(new MenuShortcut(KeyEvent.VK_P));
+    pauseNMI.setEnabled(false);
+    emulator.add(pauseNMI);
+    
     emulator.addSeparator();
     emulator.add(vramview);
     emulator.add(cramview);
@@ -226,12 +336,17 @@ public final class Remaster extends Frame {
     help.add(about);
     menubar.add(help);
     
-    // File Menu
+    // File Menu actions
     openRom.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) {
     	if(z80 != null) z80.msg.setVisible(false);
     	cart.unload();
     	cart.showOpenDialog(remaster);
-        if(cart.isLoaded()) { emulator.getItem(0).setLabel("Pause emulation"); startEmulation(); } 
+        if(cart.isLoaded()) { 
+            // remember recent
+            addToRecents(cart.getFullPath());
+            emulator.getItem(0).setLabel("Pause emulation"); 
+            startEmulation(); 
+        } 
         drawsurface.requestFocus(); } } );
     closeRom.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) {
     	cart.unload();
@@ -243,7 +358,19 @@ public final class Remaster extends Frame {
     // Emulation menu
     pauseresume.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) {
 		if(mainloop != null) { mainloop.stopEmulation(); mainloop = null; drawsurface.requestFocus(); }
-		else { mainloop = new MainThread(screen, cart, memory, vdp, psg, ports, joy, z80, debugger, vramviewer, cramviewer); mainloop.start(); emulator.getItem(0).setLabel("Pausar emula��o"); drawsurface.requestFocus(); } } } );
+		else { mainloop = new MainThread(screen, cart, memory, vdp, psg, ports, joy, z80, debugger, vramviewer, cramviewer); mainloop.start(); emulator.getItem(0).setLabel("Pausar emulação"); drawsurface.requestFocus(); } } } );
+    // Action for Pause (NMI) menu item: request NMI in a thread-safe way
+    pauseNMI.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent e) {
+            if (mainloop != null) {
+                mainloop.requestNMI();
+            } else if (z80 != null) {
+                synchronized (z80) { z80.nmi(); }
+            }
+            // Ensure GUI focus returns so keyboard mappings continue to work
+            drawsurface.requestFocus();
+        }
+    });
     vramview.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) {
     	if(vramviewer.enabled) { vramviewer.toggleEnabled(); drawsurface.requestFocus(); }
     	else { vramviewer.toggleEnabled(); drawsurface.requestFocus(); } } } );
@@ -263,68 +390,28 @@ public final class Remaster extends Frame {
     soundchan0.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) { psg.chan0 = !psg.chan0; } } );    
     soundchan1.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) { psg.chan1 = !psg.chan1; } } );    
     soundchan2.addItemListener(new ItemListener() { public void itemStateChanged(ItemEvent e) { psg.chan2 = !psg.chan2; } } );
+    
     //Configuração de Joystick
     joystick = new Menu("Joystick");
-    MenuItem configPlayer1 = new MenuItem("Configurar Player 1");
-    MenuItem configPlayer2 = new MenuItem("Configurar Player 2");
-    MenuItem joystickStatus = new MenuItem("Status dos Joysticks");
     
-    joystick.add(configPlayer1);
-    joystick.add(configPlayer2);
+    MenuItem joystickConfig = new MenuItem("Joystick Config");    
+
     joystick.addSeparator();
-    joystick.add(joystickStatus);
+    joystick.add(joystickConfig);
     menubar.add(joystick);
     
     // Help menu
-    about.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { aboutFrame.setVisible(true); } } );
+    about.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { helpDialog.setVisible(true); } } );
     
-    // Configurar listeners para o novo menu Joystick
-    configPlayer1.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        showJoystickConfigDialog(0);
-      }
-    });
-    
-    configPlayer2.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        showJoystickConfigDialog(1);
-      }
-    });
-    
-    joystickStatus.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        showJoystickStatus();
-      }
-    });
-    
-    // Desabilitar menu joystick inicialmente
-    for(int i=0; i < joystick.getItemCount(); i++) joystick.getItem(i).disable();
-    
+    //Joystick Config Menu
+   joystickConfig.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { joystickConfigWindow.setVisible(true); } } );
+        
+	
+  
     return menubar;
   }
 
-   private void showJoystickConfigDialog(int playerId) {
-    try {
-      JoystickManager joyManager = (playerId == 0) ? joystickManagerPlayer1 : joystickManagerPlayer2;
-      
-      // Usar o JoystickConfigDialog
-      com.flavioteixeira1.remaster.core.joyrobot.JoystickConfigDialog configDialog = 
-          new com.flavioteixeira1.remaster.core.joyrobot.JoystickConfigDialog(this, joyManager, playerId);
-      configDialog.setVisible(true);
-      
-    } catch (Exception e) {
-      JOptionPane.showMessageDialog(this,
-          "Erro ao abrir configuração do joystick: " + e.getMessage(),
-          "Erro",
-          JOptionPane.ERROR_MESSAGE);
-    }
-  }
-
-  private void showJoystickStatus() {
-    String status = JoystickManager.getGlobalStatus();
-    JOptionPane.showMessageDialog(this, status, "Status dos Joysticks", JOptionPane.INFORMATION_MESSAGE);
-  }
-
+   
   
 
   
@@ -332,76 +419,4 @@ public final class Remaster extends Frame {
   {
     new Remaster();
   }
-}
-
-class AboutFrame extends Frame {
-	ScrollPane scrollpanel;
-	TextArea text;
-	Button bt_ok;
-	
-	AboutFrame() {
-		super("Remaster - Sobre o programa...");
-		
-		bt_ok = new Button("Ok");
-		bt_ok.addActionListener(new ActionListener() { public void actionPerformed(ActionEvent e) { setVisible(false); } } );
-		
-		scrollpanel = new ScrollPane(ScrollPane.SCROLLBARS_AS_NEEDED);
-		//scrollpanel.setBackground(new Color(0, 0, 0));
-		text = new TextArea();
-		scrollpanel.add(text);
-		
-		text.append(Remaster.APPNAME + " - Emulador de SEGA Master System feito em Java.");
-		text.append("\n--------------------------------------------------------------------------------------------");
-		text.append("\nDesenvolvido em 2003-2004 por André Luiz Veltroni Sanches (alvs).");
-		text.append("\nE-mail: andre.alvs@gmail.com");
-		text.append("\nICQ: 69444232");
-		text.append("\n");
-		text.append("\n:: Colaboradores ::");
-		text.append("\n--------------------------");
-		text.append("\n  - Marcelo Abreu (skewer) - conceitos e técnicas.");
-		text.append("\n  - gamer_boy - teste.");
-		text.append("\n  - Todos do canal #emuroms na Brasnet (irc.brasnet.org)");
-		text.append("\n  - Todos do forum de desenvolvimento SMSPower (www.smspower.org)");
-		text.append("\n");
-		text.append("\n:: Requisitos básicos ::");
-		text.append("\n--------------------------------");
-		text.append("\n  - Processador de 1 Ghz ou superior;");
-		text.append("\n  - 128Mb de memória RAM;");
-		text.append("\n  - Java Runtime Environment versão 1.3.2 ou superior;");
-		text.append("\n");
-		text.append("\n:: Como jogar ::");
-		text.append("\n---------------------");
-		text.append("\n  Os joysticks são emulados somente no teclado, na seguinte");
-		text.append("\n  configuração:");
-		text.append("\n  - Tecla Z: botão 2 do joystick 1;");
-		text.append("\n  - Tecla X: botão 1 do joystick 1;");
-		text.append("\n  - ESC: Reset;");
-		text.append("\n  - Barra de espaço: Interrompe/continua execução;");
-		text.append("\n");
-		text.append("\n:: Características das versões ::");
-		text.append("\n--------------------------------------------");
-		text.append("\n*** v0.01:");
-		text.append("\n  - Melhoras na criação do buffer gráfico, compativel com as configurações");
-		text.append("\n    atuais de cores do desktop.");
-		text.append("\n  - Melhora no esquema de sincronização do som com a jogabilidade.");
-		text.append("\n  - Versão final para a entrega do Trabalho de Conclusão de Curso.");
-		text.append("\n");
-		text.append("\n*** v0.00:");
-		text.append("\n  - Atualmente, o Remaster emula somente o master system na versão");
-		text.append("\n    NTSC 224x190.");
-		text.append("\n  - Emulaçãoo do canal gerador de ruido branco ainda nao implementado");
-		text.append("\n  - Compatibilidade de aproximadamente 60% dos jogos.");		
-		text.append("\n  - Primeiro lançamento privado, entregue somente para beta-testers.");
-		text.append("\n");
-		
-		this.setLayout(new BorderLayout());
-		add(scrollpanel, BorderLayout.CENTER);
-		add(bt_ok, BorderLayout.SOUTH);
-		
-		addWindowListener(new WindowAdapter() { public void windowClosing(WindowEvent e) { setVisible(false); } } );
-		
-		setLocation((Toolkit.getDefaultToolkit().getScreenSize().width / 2) - 225, (Toolkit.getDefaultToolkit().getScreenSize().height / 2) - 175);
-		setSize(450, 350);
-		setResizable(false);
-	}
 }

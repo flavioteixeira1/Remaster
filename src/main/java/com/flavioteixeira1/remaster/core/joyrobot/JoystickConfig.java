@@ -22,11 +22,13 @@ public class JoystickConfig {
     }
     
     public void loadConfig(JoystickManager joystickManager) {
-        // Carregar mapeamentos salvos
+        // Carregar mapeamentos salvos (agora com o botão 4 reservado para Pause/NMI)
 	//isso deve mudar
         joystickManager.setButtonMapping(0, loadButtonMapping(0, KeyEvent.VK_Z));
         joystickManager.setButtonMapping(1, loadButtonMapping(1, KeyEvent.VK_X));
         joystickManager.setButtonMapping(2, loadButtonMapping(2, KeyEvent.VK_ENTER));
         joystickManager.setButtonMapping(3, loadButtonMapping(3, KeyEvent.VK_CONTROL));
+        // Botão extra: Pause via NMI (tecla P por padrão)
+        joystickManager.setButtonMapping(4, loadButtonMapping(4, KeyEvent.VK_P));
     }
 }
