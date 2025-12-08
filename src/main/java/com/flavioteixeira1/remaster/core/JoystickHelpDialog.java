@@ -28,9 +28,21 @@ public class JoystickHelpDialog extends JDialog {
 
         text.append(" - Jkeyboard Mapear eventos de Joystick para teclado similar ao QJoypad  feito em Java.");
         text.append("\n--------------------------------------------------------------------------------------------");
-        text.append("\n Desenvolvido por Flávio Augusto Teixeira - flavioteixeira1@gmail.com");
-        text.append("\n repositório github:  https://github.com/flavioteixeira1/Jkeyboard ");
+        text.append("\n Desenvolvido por Flávio Augusto Teixeira - flavioteixeira1@gmail.com                       ");
+        text.append("\n repositório github:  https://github.com/flavioteixeira1/Jkeyboard                          ");
         text.append("\n--------------------------------------------------------------------------------------------");
+        text.append("\n--------------------------------------------------------------------------------------------");
+        text.append("\nColoque as bibliotecas nas pastas devidas conforme o seu sistema operacional                ");
+        text.append("\nWindows (64-bit) :copie os arquivos  jinput-dx8_64.dll e  jinput-raw_64.dll para a pasta    ");
+        text.append("\npara a pasta System32 (SysWOW64)  ou para a pasta q possui o executável do java (java.exe)  ");
+        text.append("\n--------------------------------------------------------------------------------------------");
+        text.append("\nLinux: Copie   libjinput-linux64.so    para  /usr/lib                                       ");
+        text.append("\n--------------------------------------------------------------------------------------------");
+        text.append("\nTodos estes arquivos podem ser encontrados no repositório do github na pasta external_lib   ");
+        text.append("\nhttps://github.com/flavioteixeira1/Jkeyboard/tree/main/src/main/resources/external_lib      ");
+        text.append("\n                                                                                            ");
+        text.append("\nIMPORTANTE: Ao mapear uma tecla clique no botão  <Usar Mapeamento Customizado>              ");
+        text.append("\nAo limpar uma tecla clique no botão <Usar Mapeamento Customizado>                           ");
         text.append("\n");
 
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.CENTER));

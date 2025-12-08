@@ -41,7 +41,7 @@ public class JoystickConfigWindow extends JFrame {
         exportBtn = new JButton("Exportar");
         saveBtn = new JButton("Salvar");
         revertBtn = new JButton("Reverter");
-	    helpBtn = new JButton("Sobre");
+	    helpBtn = new JButton("HELP");
         
         topBar.add(Box.createHorizontalStrut(20));
         topBar.add(importBtn); 
@@ -266,11 +266,13 @@ public class JoystickConfigWindow extends JFrame {
         
         JTextArea instructions = new JTextArea(
             "Configuração Rápida:\n\n" +
-            "1. Clique em qualquer botão na tela principal\n" +
+            "1. Pressione qualquer botão ou eixo no Joystick e clique \n" + 
+            " no correspondente na tela principal - \n" +
             "2. Pressione a tecla desejada no teclado\n" +
             "3. Para eixos: configure direções separadamente\n" +
-            "4. Use 'Usar Mapeamento Customizado' para ativar\n\n" +
-            "Dica: Pressione ESC para cancelar durante a captura."
+            "4. Use 'Usar Mapeamento Customizado' para ativar - IMPORTANTE \n\n" +
+            "Dica: Pressione ESC para cancelar durante a captura.\n" +
+            "Pressione Ctrl + L para apagar um mapeamento"
         );
         instructions.setEditable(false);
         instructions.setMargin(new Insets(10, 10, 10, 10));
@@ -410,31 +412,40 @@ public class JoystickConfigWindow extends JFrame {
             updateButtonLabels();
         }
         
-        private void configureButton(int buttonIndex) {
-            try {
-                String label = "Botão " + (buttonIndex + 1) + " - Player " + (playerId + 1);
-                int keyCode = KeyCaptureDialog.capture(
-                    ConfigDialog.getCurrentInstance(), label);
-                
-                if (keyCode > 0) {
-                    joystickManager.setCustomButtonMapping(buttonIndex, keyCode);
-                    updateButtonLabels();
-                    joystickManager.setUseCustomMapping(true);
+    private void configureButton(int buttonIndex) {
+                try {
+                    String label = "Botão " + (buttonIndex + 1) + " - Player " + (playerId + 1);
+                    KeyCaptureDialog.CaptureResult result = KeyCaptureDialog.captureWithClear(
+                        ConfigDialog.getCurrentInstance(), label);
                     
-                    // Atualizar botão de toggle na MainWindow
+                    if (result.isClear()) {
+                        // Limpar o mapeamento deste botão
+                        joystickManager.setCustomButtonMapping(buttonIndex, -1); // -1 indica sem mapeamento
+                        updateButtonLabels();
+                        
+                        JOptionPane.showMessageDialog(this,
+                            "Mapeamento do Botão " + (buttonIndex + 1) + " foi limpo.",
+                            "Mapeamento Limpo",
+                            JOptionPane.INFORMATION_MESSAGE);
+                    }
+                    else if (result.keyCode > 0) {
+                        joystickManager.setCustomButtonMapping(buttonIndex, result.keyCode);
+                        updateButtonLabels();
+                        joystickManager.setUseCustomMapping(true);
+                        
+                        JOptionPane.showMessageDialog(this,
+                            "Botão " + (buttonIndex + 1) + " mapeado para: " + 
+                            KeyEvent.getKeyText(result.keyCode),
+                            "Mapeamento Configurado",
+                            JOptionPane.INFORMATION_MESSAGE);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Erro ao configurar botão: " + e.getMessage());
                     JOptionPane.showMessageDialog(this,
-                        "Botão " + (buttonIndex + 1) + " mapeado para: " + 
-                        KeyEvent.getKeyText(keyCode),
-                        "Mapeamento Configurado",
-                        JOptionPane.INFORMATION_MESSAGE);
+                        "Erro ao configurar botão: " + e.getMessage(),
+                        "Erro",
+                        JOptionPane.ERROR_MESSAGE);
                 }
-            } catch (Exception e) {
-                System.err.println("Erro ao configurar botão: " + e.getMessage());
-                JOptionPane.showMessageDialog(this,
-                    "Erro ao configurar botão: " + e.getMessage(),
-                    "Erro",
-                    JOptionPane.ERROR_MESSAGE);
-            }
         }
         
         private void configureAxis(int axisIndex) {
@@ -447,21 +458,51 @@ public class JoystickConfigWindow extends JFrame {
                 if (axisIndex < availableAxes.size()) {
                     Component.Identifier axisId = availableAxes.get(axisIndex);
                     
-                    for (int dir = 0; dir < 2; dir++) {
-                        String label = axisNames[axisIndex] + " (" + directions[dir] + ") - Player " + (playerId + 1);
-                        int keyCode = KeyCaptureDialog.capture(
+                    // Criar um diálogo de seleção para escolher qual direção limpar/configurar
+                    Object[] options = {"Negativo", "Positivo", "Ambas as direções"};
+                    int choice = JOptionPane.showOptionDialog(this,
+                        "Qual direção do eixo deseja configurar/limpar?",
+                        "Configurar Eixo",
+                        JOptionPane.DEFAULT_OPTION,
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        options,
+                        options[0]);
+                    
+                    if (choice == -1) return; // Usuário cancelou
+                    
+                    if (choice == 0 || choice == 1) { // Negativo ou Positivo
+                        String label = axisNames[axisIndex] + " (" + directions[choice] + ") - Player " + (playerId + 1);
+                        KeyCaptureDialog.CaptureResult result = KeyCaptureDialog.captureWithClear(
                             ConfigDialog.getCurrentInstance(), label);
                         
-                        if (keyCode > 0) {
-                            // Obter mapeamento atual
+                        if (result.isClear()) {
+                            // Limpar mapeamento da direção específica
                             Integer[] currentMapping = joystickManager.getMappedKeysForAxis(axisId);
                             Integer[] newMapping = new Integer[]{currentMapping[0], currentMapping[1]};
                             
-                            // Atualizar direção específica
-                            if (dir == 0) { // Negativo
-                                newMapping[0] = keyCode;
+                            if (choice == 0) { // Negativo
+                                newMapping[0] = -1;
                             } else { // Positivo
-                                newMapping[1] = keyCode;
+                                newMapping[1] = -1;
+                            }
+                            
+                            joystickManager.setCustomAxisMapping(axisId, newMapping[0], newMapping[1]);
+                            updateButtonLabels();
+                            
+                            JOptionPane.showMessageDialog(this,
+                                "Mapeamento " + directions[choice] + " do " + axisNames[axisIndex] + " foi limpo.",
+                                "Mapeamento Limpo",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        }
+                        else if (result.keyCode > 0) {
+                            Integer[] currentMapping = joystickManager.getMappedKeysForAxis(axisId);
+                            Integer[] newMapping = new Integer[]{currentMapping[0], currentMapping[1]};
+                            
+                            if (choice == 0) { // Negativo
+                                newMapping[0] = result.keyCode;
+                            } else { // Positivo
+                                newMapping[1] = result.keyCode;
                             }
                             
                             joystickManager.setCustomAxisMapping(axisId, newMapping[0], newMapping[1]);
@@ -469,9 +510,25 @@ public class JoystickConfigWindow extends JFrame {
                             joystickManager.setUseCustomMapping(true);
                             
                             JOptionPane.showMessageDialog(this,
-                                axisNames[axisIndex] + " " + directions[dir] + " mapeado para: " + 
-                                KeyEvent.getKeyText(keyCode),
+                                axisNames[axisIndex] + " " + directions[choice] + " mapeado para: " + 
+                                KeyEvent.getKeyText(result.keyCode),
                                 "Mapeamento Configurado",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+                    else if (choice == 2) { // Ambas as direções
+                        int option = JOptionPane.showConfirmDialog(this,
+                            "Deseja limpar o mapeamento de ambas as direções do " + axisNames[axisIndex] + "?",
+                            "Confirmar Limpeza",
+                            JOptionPane.YES_NO_OPTION);
+                        
+                        if (option == JOptionPane.YES_OPTION) {
+                            joystickManager.setCustomAxisMapping(axisId, -1, -1);
+                            updateButtonLabels();
+                            
+                            JOptionPane.showMessageDialog(this,
+                                "Mapeamento de ambas as direções do " + axisNames[axisIndex] + " foi limpo.",
+                                "Mapeamento Limpo",
                                 JOptionPane.INFORMATION_MESSAGE);
                         }
                     }
