@@ -32,6 +32,9 @@ public class JoystickManager {
     private Map<Integer, Integer> buttonToKeyMapping;
 
     private Map<Integer, Integer> buttonMap; // idx botão -> KeyEvent.VK_?
+    //Desfazer Mapeamento
+    private Map<Integer, Integer> lastButtonMapping = new HashMap<>();
+    private Map<Component.Identifier, Integer[]> lastAxisMapping = new HashMap<>();
     
     // Estados atuais das teclas virtuais
     private boolean[] keyStates;
@@ -449,16 +452,42 @@ public class JoystickManager {
     }
 
     public void setCustomButtonMapping(int buttonIndex, int keyCode) {
+        //Salva mapeamento anterior
+        lastButtonMapping.put(buttonIndex, customButtonMapping.getOrDefault(buttonIndex, -1));
+        
         customButtonMapping.put(buttonIndex, keyCode);
-        System.out.println("Botão customizado " + buttonIndex + " mapeado para " + getKeyName(keyCode));
-    }
+        if (keyCode == -1) {
+            System.out.println("Mapeamento do botão " + buttonIndex + " foi limpo");
+        } else {
+            System.out.println("Botão customizado " + buttonIndex + " mapeado para " + getKeyName(keyCode));
+            }
+        }
 
-    public void setCustomAxisMapping(Component.Identifier axis, int negativeKey, int positiveKey) {
+        public void setCustomAxisMapping(Component.Identifier axis, int negativeKey, int positiveKey) {
         customAxisMapping.put(axis, new Integer[]{negativeKey, positiveKey});
-        System.out.println("Eixo customizado " + axis + " mapeado para " + 
-                     getKeyName(negativeKey) + "/" + getKeyName(positiveKey));
-    }
+        
+        if (negativeKey == -1 && positiveKey == -1) {
+            System.out.println("Eixo " + axis + " teve seu mapeamento limpo");
+        } else {
+            String negKeyName = negativeKey > 0 ? getKeyName(negativeKey) : "Nenhuma";
+            String posKeyName = positiveKey > 0 ? getKeyName(positiveKey) : "Nenhuma";
+            System.out.println("Eixo " + axis + " mapeado para " + 
+                        negKeyName + "/" + posKeyName);
+            }
+        }
+    
+    public void undoLastMapping(int buttonIndex) {
+            if (lastButtonMapping.containsKey(buttonIndex)) {
+                customButtonMapping.put(buttonIndex, lastButtonMapping.get(buttonIndex));
+            }
+        }
 
+    public void clearAllCustomMappings() {
+    customButtonMapping.clear();
+    customAxisMapping.clear();
+    System.out.println("Todos os mapeamentos customizados foram limpos");
+    }
+    
     //Setter
     public void setUseCustomMapping(boolean useCustom) {
         this.useCustomMapping = useCustom;
