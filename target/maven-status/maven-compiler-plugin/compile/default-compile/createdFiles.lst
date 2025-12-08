@@ -24,6 +24,7 @@ com/flavioteixeira1/remaster/core/HelpDialog.class
 com/flavioteixeira1/remaster/core/Remaster$4.class
 com/flavioteixeira1/remaster/core/Remaster$11.class
 com/flavioteixeira1/remaster/core/EZ80.class
+com/flavioteixeira1/remaster/core/KeyCaptureDialog$CaptureResult.class
 com/flavioteixeira1/remaster/core/VRAMViewer$1.class
 com/flavioteixeira1/remaster/core/Debugger.class
 com/flavioteixeira1/remaster/core/PSG.class
